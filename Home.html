@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Market Tycoon: Evolution</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;700;900&display=swap');
+
+        :root {
+            --primary: #6366f1;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #0f172a;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            touch-action: none; /* Prevents default browser gestures like pinch-to-zoom */
+        }
+
+        .bungee { font-family: 'Bungee', cursive; }
+
+        #game-canvas {
+            image-rendering: pixelated;
+            background: #1e293b;
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .glass {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .interaction-panel {
+            position: absolute;
+            bottom: 7rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 95%;
+            max-width: 600px;
+            display: none;
+            z-index: 50;
+        }
+
+        .speech-bubble {
+            position: relative;
+            background: white;
+            color: #1e293b;
+            padding: 1rem;
+            border-radius: 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .btn-option {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s;
+            text-align: left;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            width: 100%;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            touch-action: manipulation;
+        }
+
+        .btn-option:active {
+            background: var(--primary);
+            transform: scale(0.98);
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1rem;
+            border-radius: 99px;
+            font-weight: 800;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+            flex: 1;
+            text-align: center;
+        }
+
+        .nav-btn.active {
+            background: var(--primary);
+            border-color: rgba(255,255,255,0.4);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .menu-popup {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--primary);
+            border-radius: 1rem;
+            padding: 1rem;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            min-width: 180px;
+        }
+
+        #market-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            width: 95%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .market-card {
+            background: #1e293b;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 1rem;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        /* Mobile-specific adjustments for HUD */
+        @media (max-width: 640px) {
+            .hud-container { padding: 0.5rem; }
+            .nav-container { width: 95%; bottom: 1.5rem; }
+            .market-card { padding: 0.75rem; }
+            .speech-bubble { font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HUD -->
+    <div class="fixed top-0 left-0 w-full p-2 sm:p-4 flex justify-between items-start z-40 pointer-events-none hud-container">
+        <div class="flex space-x-1 sm:space-x-2">
+            <div class="glass p-2 sm:p-3 rounded-xl sm:rounded-2xl flex items-center space-x-2 sm:space-x-4 pointer-events-auto shadow-2xl">
+                <div class="bg-indigo-500/20 p-1 sm:p-2 rounded-lg text-lg sm:text-2xl">💰</div>
+                <div>
+                    <div class="text-[8px] sm:text-[10px] uppercase tracking-widest text-indigo-300 font-black">Balance</div>
+                    <div id="money-display" class="text-sm sm:text-xl bungee">$120</div>
+                </div>
+            </div>
+            <div class="glass p-2 sm:p-3 rounded-xl sm:rounded-2xl flex items-center space-x-2 sm:space-x-4 pointer-events-auto shadow-2xl">
+                <div class="bg-pink-500/20 p-1 sm:p-2 rounded-lg text-lg sm:text-2xl">⭐</div>
+                <div>
+                    <div class="text-[8px] sm:text-[10px] uppercase tracking-widest text-pink-300 font-black">Loyalty</div>
+                    <div id="loyalty-display" class="text-sm sm:text-xl bungee">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-end space-y-1 sm:space-y-2">
+            <div class="glass px-3 py-1 rounded-full text-[10px] font-bold border-indigo-500/30 flex items-center pointer-events-auto">
+                <span class="w-2 h-2 bg-indigo-500 rounded-full mr-2 animate-pulse"></span>
+                <span id="q-count">0</span>
+            </div>
+            <div class="glass px-3 py-1 rounded-full text-[10px] font-bold pointer-events-auto">
+                <span id="loc-name" class="text-indigo-400 uppercase">SHOP</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 flex space-x-2 z-50 glass p-2 rounded-full w-[90%] max-w-md nav-container">
+        <button onclick="switchScene('SHOP')" id="nav-SHOP" class="nav-btn active">🏪 SHOP</button>
+        <button onclick="switchScene('FARM')" id="nav-FARM" class="nav-btn">🌱 FARM</button>
+        <button onclick="switchScene('MARKET')" id="nav-MARKET" class="nav-btn">⚖️ MARKET</button>
+    </div>
+
+    <!-- Market Overlay -->
+    <div id="market-ui" class="z-50 glass rounded-3xl">
+        <!-- Generated via JS -->
+    </div>
+
+    <!-- Seed Selection Popup -->
+    <div id="seed-menu" class="menu-popup pointer-events-auto">
+        <h3 class="text-xs font-black mb-2 uppercase text-indigo-400">Plant Seed</h3>
+        <div id="seed-list" class="flex flex-col gap-1"></div>
+    </div>
+
+    <!-- Interaction Layer -->
+    <div id="interaction-panel" class="interaction-panel">
+        <div class="flex items-end mb-2">
+            <div id="active-customer-sprite" class="w-20 h-20 sm:w-32 sm:h-32 mr-2 drop-shadow-2xl"></div>
+            <div class="flex-1">
+                <div id="speech-text" class="speech-bubble font-bold italic"></div>
+            </div>
+        </div>
+        <div id="options-container" class="glass p-3 rounded-2xl"></div>
+    </div>
+
+    <!-- Event Toast -->
+    <div id="event-toast" class="fixed top-20 left-1/2 -translate-x-1/2 glass px-6 py-3 rounded-full z-50 text-indigo-400 font-black uppercase tracking-widest hidden border-indigo-500 text-xs text-center w-64">
+        Message
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const moneyDisplay = document.getElementById('money-display');
+        const loyaltyDisplay = document.getElementById('loyalty-display');
+        const interactionPanel = document.getElementById('interaction-panel');
+        const optionsContainer = document.getElementById('options-container');
+        const speechText = document.getElementById('speech-text');
+        const spriteContainer = document.getElementById('active-customer-sprite');
+        const qCountEl = document.getElementById('q-count');
+        const seedMenu = document.getElementById('seed-menu');
+        const marketUI = document.getElementById('market-ui');
+
+        // Configuration
+        const ITEMS = {
+            APPLE: { id: 'APPLE', name: 'Apple', icon: '🍎', seedPrice: 4, productPrice: 12, sellPrice: 20, growTime: 5000 },
+            BERRY: { id: 'BERRY', name: 'Berry', icon: '🫐', seedPrice: 8, productPrice: 25, sellPrice: 45, growTime: 9000 },
+            MELON: { id: 'MELON', name: 'Melon', icon: '🍈', seedPrice: 20, productPrice: 60, sellPrice: 110, growTime: 18000 }
+        };
+
+        const CUSTOMER_TYPES = [
+            { id: 'REG', name: "Regular", patience: 15, mult: 1, dialogue: ["Just looking for some food."], colors: { skin: "#ffdbac", cloth: "#3b82f6" } },
+            { id: 'RICH', name: "Rich Collector", patience: 20, mult: 2.5, dialogue: ["Only the finest for me!"], colors: { skin: "#f1c27d", cloth: "#fbbf24" } },
+            { id: 'ALIEN', name: "Star Traveler", patience: 12, mult: 4, dialogue: ["I require biological nourishment."], colors: { skin: "#a7f3d0", cloth: "#065f46" }, special: 'alien' },
+            { id: 'HURRY', name: "Hurry Harry", patience: 6, mult: 1.2, dialogue: ["Hurry up! Quick!"], colors: { skin: "#e0ac69", cloth: "#ef4444" } }
+        ];
+
+        let state = {
+            money: 120,
+            loyalty: 0,
+            inventory: { APPLE: 2, BERRY: 0, MELON: 0 },
+            seeds: { APPLE: 2, BERRY: 1, MELON: 0 },
+            queue: [],
+            activeCustomer: null,
+            scene: 'SHOP',
+            farmPlots: [
+                { id: 0, crop: null, startTime: 0, relX: 0.25, relY: 0.4 },
+                { id: 1, crop: null, startTime: 0, relX: 0.75, relY: 0.4 },
+                { id: 2, crop: null, startTime: 0, relX: 0.25, relY: 0.7 },
+                { id: 3, crop: null, startTime: 0, relX: 0.75, relY: 0.7 },
+            ],
+            lastFrameTime: 0,
+            activePlot: null
+        };
+
+        // --- CUSTOMER LOGIC ---
+        function createCustomerSprite(customer, mood = 'normal') {
+            const colors = customer.type.colors;
+            const mouth = mood === 'impatient' ? "M40 45 Q50 40 60 45" : "M45 42 Q50 45 55 42";
+            
+            let extra = "";
+            if(customer.type.special === 'alien') {
+                extra = `<circle cx="50" cy="15" r="5" fill="#34d399" class="animate-bounce" />
+                         <path d="M35 25 Q50 15 65 25" stroke="#065f46" stroke-width="1" fill="none"/>`;
+            }
+
+            return `
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                    ${extra}
+                    <circle cx="50" cy="35" r="20" fill="${colors.skin}" />
+                    <rect x="30" y="55" width="40" height="45" rx="10" fill="${colors.cloth}" />
+                    <circle cx="43" cy="32" r="2" fill="#1e293b" />
+                    <circle cx="57" cy="32" r="2" fill="#1e293b" />
+                    <path d="${mouth}" stroke="#1e293b" stroke-width="2" fill="none" />
+                </svg>`;
+        }
+
+        class Customer {
+            constructor() {
+                this.type = CUSTOMER_TYPES[Math.floor(Math.random() * CUSTOMER_TYPES.length)];
+                this.wants = Object.keys(ITEMS)[Math.floor(Math.random() * Object.keys(ITEMS).length)];
+                this.amount = Math.floor(Math.random() * 2) + 1;
+                this.x = -100;
+                this.y = window.innerHeight * 0.6;
+                this.timer = 0;
+                this.hasWarned = false;
+                this.left = false;
+            }
+
+            update(dt) {
+                const index = state.queue.indexOf(this);
+                const targetX = (window.innerWidth / 2) - (index * 70);
+                this.x += (targetX - this.x) * 0.1;
+                this.y = window.innerHeight * 0.6;
+
+                if (index === 0 && Math.abs(this.x - (window.innerWidth / 2)) < 10) {
+                    this.timer += dt;
+                    if (this.timer > 7000 && !this.hasWarned && !state.activeCustomer) {
+                        this.hasWarned = true;
+                        showToast(`${this.type.name}: "Is anyone serving?"`);
+                    }
+                    if (this.timer > this.type.patience * 1000) this.leave();
+                }
+            }
+
+            leave() {
+                if (this.left) return;
+                this.left = true;
+                if (state.activeCustomer === this) closeInteraction();
+                state.queue = state.queue.filter(c => c !== this);
+                state.loyalty = Math.max(0, state.loyalty - 5);
+                showToast("Customer left!");
+                updateUI();
+            }
+        }
+
+        // --- SCENE DRAWING ---
+        function drawBackground() {
+            const w = canvas.width, h = canvas.height;
+            if (state.scene === 'SHOP') {
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(0, h * 0.55, w, h * 0.45);
+                ctx.fillStyle = '#0f172a'; ctx.fillRect(w/2 - 100, h * 0.52, 200, 80);
+                ctx.fillStyle = '#6366f1'; ctx.fillRect(w/2 - 110, h * 0.51, 220, 10);
+            } else if (state.scene === 'FARM') {
+                ctx.fillStyle = '#065f46'; ctx.fillRect(0, 0, w, h);
+                state.farmPlots.forEach(p => {
+                    const px = p.relX * w;
+                    const py = p.relY * h;
+                    ctx.fillStyle = '#451a03';
+                    ctx.beginPath(); ctx.roundRect(px - 60, py - 40, 120, 80, 15); ctx.fill();
+                    if (p.crop) {
+                        const progress = Math.min(1, (Date.now() - p.startTime) / ITEMS[p.crop].growTime);
+                        ctx.font = `${20 + progress * 20}px serif`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(ITEMS[p.crop].icon, px, py + 10);
+                        if (progress >= 1) {
+                            ctx.fillStyle = '#fbbf24'; ctx.font = '900 12px Inter'; ctx.fillText("READY", px, py - 50);
+                        }
+                    }
+                });
+            } else if (state.scene === 'MARKET') {
+                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                ctx.textAlign = 'center';
+                ctx.font = '900 30px Inter';
+                ctx.fillText("MARKET", w/2, 60);
+            }
+        }
+
+        // --- MARKET UI GENERATOR ---
+        function renderMarketUI() {
+            marketUI.innerHTML = '';
+            Object.values(ITEMS).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'market-card flex flex-col items-center';
+                card.innerHTML = `
+                    <div class="text-3xl mb-1">${item.icon}</div>
+                    <div class="text-xs font-bold mb-3">${item.name}</div>
+                    <button onclick="buyItem('${item.id}', 'seed')" class="w-full bg-indigo-600 active:bg-indigo-400 py-2 rounded-lg mb-2 text-[10px] font-black">
+                        SEED ($${item.seedPrice})
+                    </button>
+                    <button onclick="buyItem('${item.id}', 'product')" class="w-full bg-emerald-600 active:bg-emerald-400 py-2 rounded-lg text-[10px] font-black">
+                        STOCK ($${item.productPrice})
+                    </button>
+                `;
+                marketUI.appendChild(card);
+            });
+        }
+
+        window.buyItem = (id, type) => {
+            const item = ITEMS[id];
+            const price = type === 'seed' ? item.seedPrice : item.productPrice;
+            if (state.money >= price) {
+                state.money -= price;
+                if (type === 'seed') state.seeds[id]++;
+                else state.inventory[id]++;
+                showToast(`Got ${item.icon} ${type}!`);
+                updateUI();
+            } else {
+                showToast("Low Funds!");
+            }
+        };
+
+        // --- GAMEPLAY TRIGGERS ---
+        function switchScene(s) {
+            state.scene = s;
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('nav-'+s).classList.add('active');
+            document.getElementById('loc-name').innerText = s;
+            
+            seedMenu.style.display = 'none';
+            marketUI.style.display = (s === 'MARKET') ? 'grid' : 'none';
+            
+            if (s !== 'SHOP') closeInteraction();
+            if (s === 'MARKET') renderMarketUI();
+        }
+
+        function handleInput(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const x = clientX - rect.left, y = clientY - rect.top;
+
+            if (state.scene === 'SHOP') {
+                const head = state.queue[0];
+                if (head && Math.abs(x - head.x) < 60 && !state.activeCustomer) startInteraction(head);
+            } else if (state.scene === 'FARM') {
+                state.farmPlots.forEach(p => {
+                    const px = p.relX * canvas.width;
+                    const py = p.relY * canvas.height;
+                    if (Math.abs(x - px) < 60 && Math.abs(y - py) < 40) {
+                        if (!p.crop) {
+                            state.activePlot = p;
+                            openSeedMenu(clientX, clientY);
+                        } else if ((Date.now() - p.startTime) / ITEMS[p.crop].growTime >= 1) {
+                            state.inventory[p.crop] += 1;
+                            p.crop = null;
+                            showToast("Harvested!");
+                        }
+                    }
+                });
+            }
+            updateUI();
+        }
+
+        canvas.onclick = (e) => handleInput(e.clientX, e.clientY);
+        canvas.ontouchstart = (e) => {
+            const touch = e.touches[0];
+            handleInput(touch.clientX, touch.clientY);
+        };
+
+        function startInteraction(customer) {
+            state.activeCustomer = customer;
+            spriteContainer.innerHTML = createCustomerSprite(customer, customer.hasWarned ? 'impatient' : 'normal');
+            speechText.innerText = `I need ${customer.amount}x ${ITEMS[customer.wants].icon}.`;
+            renderOptions();
+            interactionPanel.style.display = 'block';
+        }
+
+        function renderOptions() {
+            const customer = state.activeCustomer;
+            const item = ITEMS[customer.wants];
+            const hasStock = state.inventory[customer.wants] >= customer.amount;
+            const loyaltyMult = 1 + (state.loyalty / 100);
+            
+            optionsContainer.innerHTML = '';
+            const sellBtn = document.createElement('button');
+            sellBtn.disabled = !hasStock;
+            sellBtn.className = `btn-option flex justify-between items-center ${!hasStock ? 'opacity-40' : ''}`;
+            const price = Math.floor(item.sellPrice * customer.amount * customer.type.mult * loyaltyMult);
+            sellBtn.innerHTML = `<span>Sell ${customer.amount}x</span> <span class="text-green-400">+$${price}</span>`;
+            sellBtn.onclick = () => {
+                state.money += price;
+                state.inventory[customer.wants] -= customer.amount;
+                state.loyalty += 2;
+                completeCust();
+            };
+            optionsContainer.appendChild(sellBtn);
+            
+            const refuseBtn = document.createElement('button');
+            refuseBtn.className = "btn-option opacity-60";
+            refuseBtn.innerText = "Decline";
+            refuseBtn.onclick = completeCust;
+            optionsContainer.appendChild(refuseBtn);
+        }
+
+        function completeCust() {
+            state.queue = state.queue.filter(c => c !== state.activeCustomer);
+            closeInteraction();
+            updateUI();
+        }
+
+        function closeInteraction() {
+            state.activeCustomer = null;
+            interactionPanel.style.display = 'none';
+        }
+
+        function openSeedMenu(ex, ey) {
+            const list = document.getElementById('seed-list');
+            list.innerHTML = '';
+            let hasAnySeeds = false;
+            
+            Object.entries(state.seeds).forEach(([id, count]) => {
+                if (count > 0) hasAnySeeds = true;
+                const btn = document.createElement('button');
+                btn.className = `text-left px-3 py-3 rounded-lg flex justify-between items-center ${count > 0 ? 'bg-white/5 active:bg-indigo-600' : 'opacity-20'}`;
+                btn.innerHTML = `<span>${ITEMS[id].icon} ${ITEMS[id].name}</span> <span class="font-bold">${count}</span>`;
+                btn.onclick = () => {
+                    if(count > 0) {
+                        state.activePlot.crop = id;
+                        state.activePlot.startTime = Date.now();
+                        state.seeds[id]--;
+                        seedMenu.style.display = 'none';
+                        updateUI();
+                    }
+                };
+                list.appendChild(btn);
+            });
+
+            if (!hasAnySeeds) {
+                list.innerHTML = `<div class="text-[10px] text-red-400 p-2 italic">Buy seeds at MARKET</div>`;
+            }
+
+            // Reposition menu so it doesn't go off-screen
+            seedMenu.style.display = 'block';
+            const menuW = seedMenu.offsetWidth;
+            const menuH = seedMenu.offsetHeight;
+            seedMenu.style.left = `${Math.min(window.innerWidth - menuW - 10, Math.max(10, ex - menuW/2))}px`;
+            seedMenu.style.top = `${Math.min(window.innerHeight - menuH - 100, Math.max(10, ey - menuH/2))}px`;
+        }
+
+        window.addEventListener('mousedown', (e) => {
+            if (!seedMenu.contains(e.target) && e.target !== canvas) seedMenu.style.display = 'none';
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('event-toast');
+            t.innerText = msg; t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 2000);
+        }
+
+        function updateUI() {
+            moneyDisplay.innerText = `$${Math.floor(state.money)}`;
+            loyaltyDisplay.innerText = state.loyalty;
+            qCountEl.innerText = state.queue.length;
+        }
+
+        function loop(timestamp) {
+            const dt = timestamp - state.lastFrameTime;
+            state.lastFrameTime = timestamp;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+
+            if (state.scene === 'SHOP') {
+                state.queue.forEach(c => {
+                    c.update(dt);
+                    ctx.save();
+                    ctx.translate(c.x, c.y);
+                    ctx.fillStyle = c.type.colors.cloth; ctx.fillRect(-20, -40, 40, 40);
+                    ctx.fillStyle = c.type.colors.skin; ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI*2); ctx.fill();
+                    if (state.queue.indexOf(c) === 0) {
+                        const p = 1 - (c.timer / (c.type.patience * 1000));
+                        ctx.fillStyle = p > 0.3 ? '#10b981' : '#ef4444'; ctx.fillRect(-20, -75, 40 * p, 4);
+                    }
+                    ctx.restore();
+                });
+            }
+            requestAnimationFrame(loop);
+        }
+
+        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+        window.onresize();
+        setInterval(() => { if (state.queue.length < 5) state.queue.push(new Customer()); updateUI(); }, 7000);
+        requestAnimationFrame(loop);
+        updateUI();
+    </script>
+</body>
+</html>
